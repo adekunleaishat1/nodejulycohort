@@ -1,5 +1,7 @@
 const usermodel = require("../model/user.model")
 const bcrypt = require("bcryptjs")
+const jwt = require("jsonwebtoken")
+
 
 const Signup = async(req,res) =>{
     try {
@@ -49,7 +51,9 @@ const Login = async (req, res) =>{
        const correctpassword =  await bcrypt.compare(password, existuser.password)
        
      if (existuser && correctpassword) {
-       return res.status(200).json({message:"login successful", status:true})
+      const token =  await jwt.sign({email:existuser.email, id:existuser._id}, process.env.SECRETKEY,{expiresIn:300} )
+
+       return res.status(200).json({message:"login successful", status:true, token})
       
      }
         return res.status(400).json({message:"User does not exist,plaese register!!!", status:false})
@@ -58,4 +62,26 @@ const Login = async (req, res) =>{
   }
 }
 
-module.exports = {Signup, Login}
+const verifyToken =async (req, res) =>{
+  try {
+    const token = req.headers.authorization.split(" ")[1]
+    if (!token) {
+      return res.status(400).json({message:"Invalid token", status:false})
+    }
+    console.log(token);
+    
+    const verifieduser =  await jwt.verify(token, process.env.SECRETKEY)
+      console.log(verifieduser);
+      if (verifieduser) {
+       const user =   await usermodel.findById(verifieduser.id)
+       return res.status(200).json({status:true, user})
+      }
+      return res.status(400).json({message:"token verification failed", status:false})
+      
+  } catch (error) {
+        console.log(error);
+       return res.status(500).json({message:error.message, status:false})
+  }
+}
+
+module.exports = {Signup, Login, verifyToken}

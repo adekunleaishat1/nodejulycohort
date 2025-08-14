@@ -1,7 +1,9 @@
 import React ,{useState}from 'react'
 import axios from 'axios'
+import { useNavigate } from 'react-router-dom'
 
 const Login = () => {
+  const navigate = useNavigate()
     const [userDetail, setuserDetail] = useState({
         email:"",
         password:""
@@ -16,6 +18,8 @@ const Login = () => {
        axios.post("http://localhost:8005/user/login",userDetail)
        .then((res)=>{
         console.log(res);
+        localStorage.setItem("token", res.data.token)
+        navigate("/dashboard")
        }).catch((err)=>{
         console.log(err);
        })
