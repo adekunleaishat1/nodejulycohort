@@ -1,6 +1,7 @@
 const usermodel = require("../model/user.model")
 const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
+const cloudinary = require("../utils/cloudinary")
 
 
 const Signup = async(req,res) =>{
@@ -83,5 +84,35 @@ const verifyToken =async (req, res) =>{
        return res.status(500).json({message:error.message, status:false})
   }
 }
+const UploadProfile = async(req, res) =>{
+  try {
+    console.log(req.body);
+    const {image} = req.body
+    const token = req.headers.authorization.split(" ")[1]
+    if (!token) {
+      return res.status(400).json({message:"Invalid token", status:false})
+    }
+    const verifieduser =  await jwt.verify(token, process.env.SECRETKEY)
+       if (verifieduser) {
+         const uploadedimage = await cloudinary.uploader.upload(image)
+         console.log(uploadedimage);
 
-module.exports = {Signup, Login, verifyToken}
+          const updated =  await usermodel.findByIdAndUpdate(
+          verifieduser.id,
+          {profilepicture:uploadedimage.secure_url}
+         )
+         console.log(updated);
+         
+
+       if (!updated) {
+       return res.status(400).json({message:"profile update failed", status:false})
+       }
+        return res.status(200).json({message:"profile updated successfully",status:true,})
+       }  
+  } catch (error) {
+    console.log(error);
+       return res.status(500).json({message:error.message, status:false}) 
+  }
+} 
+
+module.exports = {Signup, Login, verifyToken, UploadProfile}
