@@ -4,6 +4,7 @@ const connect = require("./dbcofig/db.connect")
 require("dotenv").config()
 const userrouter = require("./route/user.route")
 const cors = require("cors")
+const ejs = require("ejs")
 
 
 // middleware 
@@ -12,6 +13,7 @@ app.use(cors({
     origin:"*"
 }))
 app.use("/user", userrouter)
+app.set("view engine", "ejs")
 
 
 

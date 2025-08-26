@@ -2,6 +2,7 @@ const usermodel = require("../model/user.model")
 const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
 const cloudinary = require("../utils/cloudinary")
+const Emailverification = require("../utils/mailer")
 
 
 const Signup = async(req,res) =>{
@@ -12,16 +13,23 @@ const Signup = async(req,res) =>{
         return res.status(400).json({message:"All fields are mandatory", status:false})
        }    
        const hashedpassword = await bcrypt.hash(password,10)
-     
-      const newUser = await usermodel.create({
-        username,
-        email,
-        password:hashedpassword
-      })
-      if (!newUser) {
-        return res.status(400).json({message:"unable to create user", status:false})
-      }
 
+        const otp = Math.floor(Math.random() * 10000)
+         const link = `http://localhost:8005/user/emailverification/${otp}`
+        const mailres =  await Emailverification(email, username, link)
+
+       if (mailres) {
+          const newUser = await usermodel.create({
+          username,
+          email,
+          password:hashedpassword,
+          otp:otp
+         })
+         if (!newUser) {
+             return res.status(400).json({message:"unable to create user", status:false})
+          }
+       }
+     
        return res.status(200).json({message:"signup successful", status:true})
     } catch (error) {
       if (error.message.includes("E11000 duplicate key error collection")) {
@@ -53,7 +61,11 @@ const Login = async (req, res) =>{
        
      if (existuser && correctpassword) {
       const token =  await jwt.sign({email:existuser.email, id:existuser._id}, process.env.SECRETKEY,{expiresIn:300} )
-
+      
+      if (!existuser.verified) {
+        return res.status(400).json({message:"Email is not verfied,check your mail for verification.", status:false})
+        
+      }
        return res.status(200).json({message:"login successful", status:true, token})
       
      }
@@ -86,19 +98,17 @@ const verifyToken =async (req, res) =>{
 }
 const UploadProfile = async(req, res) =>{
   try {
-    console.log(req.body);
+    // console.log(req.body);
+    // console.log(req.user);
+    const user = req.user
     const {image} = req.body
-    const token = req.headers.authorization.split(" ")[1]
-    if (!token) {
-      return res.status(400).json({message:"Invalid token", status:false})
-    }
-    const verifieduser =  await jwt.verify(token, process.env.SECRETKEY)
-       if (verifieduser) {
+  
+       if (user) {
          const uploadedimage = await cloudinary.uploader.upload(image)
          console.log(uploadedimage);
 
           const updated =  await usermodel.findByIdAndUpdate(
-          verifieduser.id,
+           user._id,
           {profilepicture:uploadedimage.secure_url}
          )
          console.log(updated);
@@ -114,5 +124,29 @@ const UploadProfile = async(req, res) =>{
        return res.status(500).json({message:error.message, status:false}) 
   }
 } 
-
-module.exports = {Signup, Login, verifyToken, UploadProfile}
+const VerifyEmail = async(req, res) =>{
+  try {
+   let  message = ""
+    const {otp} = req.params
+   const otpverif =  await usermodel.findOne({otp})
+   if (!otpverif) {
+      message = "invalid otp"
+      return
+   }
+   const upadted = await usermodel.findByIdAndUpdate(otpverif._id,
+      {$set:{verified: true},
+        $unset:{otp}
+       },
+      {new:true}
+    )
+    if (upadted) {
+       message = "Email verification successful"
+      return  res.render("verify", {message})
+    } 
+    
+  } catch (error) {
+    console.log(error);
+    
+  }
+}
+module.exports = {Signup, Login, verifyToken, UploadProfile, VerifyEmail}
